@@ -51,8 +51,8 @@ const checkedGoods = ref([])
 const loadCart = async () => {
   const res = await getCartList()
   cartList.value = res || []
-  // 同步购物车角标
-  cartStore.cart.value = cartList.value.map(i => ({ ...i, num: i.quantity }))
+  // 同步购物车角标（服务端结构，含 quantity）
+  cartStore.setCart(cartList.value)
 }
 
 const isAllChecked = ref(false)
@@ -87,21 +87,26 @@ const totalCount = computed(() => {
 
 let qtyTimer = null
 const onQuantityChange = item => {
-  cartStore.cart.value = cartList.value.map(i => ({ ...i, num: i.quantity }))
+  // 乐观同步角标（cartList 已通过 v-model 反映最新数量）
+  cartStore.setCart(cartList.value)
   // 防抖 400ms 后同步到后端，刷新不丢失
   clearTimeout(qtyTimer)
   qtyTimer = setTimeout(async () => {
     const res = await updateCart(item.id, item.quantity)
-    if (res) cartList.value = res
-    else showToast('数量更新失败')
+    if (res) {
+      cartList.value = res
+      cartStore.setCart(res)
+    } else {
+      showToast('数量更新失败')
+    }
   }, 400)
 }
 
 const deleteItem = async id => {
   const res = await removeCart(id)
   if (res) {
-    cartStore.removeCart(id)
-    cartList.value = res || cartList.value.filter(i => i.id !== id)
+    cartList.value = res
+    cartStore.setCart(res)
     checkedGoods.value = checkedGoods.value.filter(gid => gid !== id)
   }
 }

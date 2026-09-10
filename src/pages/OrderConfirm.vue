@@ -95,10 +95,10 @@ const submit = async () => {
   })
   submitting.value = false
   if (res) {
-    // 下单成功，删除购物车中已结算的项
+    // 下单成功，删除购物车中已结算的项，并用服务端返回的最新列表同步角标
     for (const item of items.value) {
-      await removeCart(item.id)
-      cartStore.removeCart(item.id)
+      const delRes = await removeCart(item.id)
+      if (delRes) cartStore.setCart(delRes)
     }
     showToast({ message: '下单成功', type: 'success' })
     setTimeout(() => router.replace({ name: 'orderList' }), 800)

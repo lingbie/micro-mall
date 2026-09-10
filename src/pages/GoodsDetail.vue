@@ -57,24 +57,18 @@ const loadDetail = async () => {
 
 const addToCart = async () => {
   if (!goods.value) return
-  const cartGoods = {
-    id: goods.value.id,
-    name: goods.value.name,
-    price: goods.value.price,
-    pic_url: goods.value.pic_url,
-    desc: goods.value.desc,
-    quantity: 1, // 后端购物车字段
-    num: 1 // 本地角标 store 字段
-  }
-  const res = await addCart(cartGoods)
-  // 同步更新本地购物车角标
-  cartStore.addToCart(cartGoods)
+  // 仅发送后端需要的字段：id=商品id、quantity
+  const res = await addCart({ id: goods.value.id, quantity: 1 })
+  // 仅在接口成功时，用服务端返回的完整购物车列表覆盖本地角标
+  // （修复：未登录/接口失败时不再虚增角标）
   if (res) {
+    cartStore.setCart(res)
     showToast({
       message: '已加入购物车',
       type: 'success'
     })
   }
+  return res
 }
 
 const buyNow = async () => {

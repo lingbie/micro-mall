@@ -19,8 +19,9 @@ app.use(
 )
 app.use(express.json({ limit: '100kb' }))
 
-// 请求日志（开发排查用）
+// 请求日志（开发排查用；测试环境静默以保持输出整洁）
 app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'test') return next()
   const start = Date.now()
   res.on('finish', () => {
     const cost = Date.now() - start

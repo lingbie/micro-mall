@@ -1,0 +1,20 @@
+# .gitignore 补充：敏感配置与本地环境
+.env
+.env.*
+!.env.example
+server/.env
+
+# 依赖
+node_modules/
+server/rag/.venv/
+
+# 构建产物
+dist/
+
+# 日志
+*.log
+
+# 备份与系统文件
+*.bak
+.DS_Store
+Thumbs.db

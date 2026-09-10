@@ -56,7 +56,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:
-      - "8361:8361"
+      # 宿主机端口可用 RAG_HOST_PORT 覆盖；与本机 RAG(8361)冲突时改端口
+      - "${RAG_HOST_PORT:-8361}:8361"
     depends_on:
       redis:
         condition: service_healthy
@@ -88,7 +89,9 @@ services:
       # 容器网络内以服务名 rag 访问 RAG 服务
       RAG_SERVER_URL: http://rag:8361
     ports:
-      - "8360:8360"
+      # 宿主机端口可用 BACKEND_HOST_PORT 覆盖；与本机解压版后端(8360)冲突时改端口
+      # 容器内部仍监听 8360，web(nginx)经服务名 backend:8360 互访，不受宿主机端口影响
+      - "${BACKEND_HOST_PORT:-8360}:8360"
     depends_on:
       mysql:
         condition: service_healthy
@@ -111,7 +114,8 @@ services:
     container_name: myshop-web
     restart: unless-stopped
     ports:
-      - "8080:80"
+      # 宿主机端口可用 WEB_HOST_PORT 覆盖；与本机其它服务(8080)冲突时改端口
+      - "${WEB_HOST_PORT:-8080}:80"
     depends_on:
       backend:
         condition: service_healthy

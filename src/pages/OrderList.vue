@@ -103,7 +103,11 @@ const onPay = async order => {
 }
 
 const onCancel = async order => {
-  await showConfirmDialog({ title: '提示', message: '确定取消该订单吗？取消后库存将释放。' })
+  try {
+    await showConfirmDialog({ title: '提示', message: '确定取消该订单吗？取消后库存将释放。' })
+  } catch {
+    return // 用户点击取消，静默返回，避免未捕获的 promise rejection
+  }
   const res = await cancelOrder(order.id)
   if (res) {
     showToast({ message: '订单已取消', type: 'success' })
@@ -112,7 +116,11 @@ const onCancel = async order => {
 }
 
 const onConfirm = async order => {
-  await showConfirmDialog({ title: '提示', message: '确认已收到货？' })
+  try {
+    await showConfirmDialog({ title: '提示', message: '确认已收到货？' })
+  } catch {
+    return // 用户点击取消，静默返回
+  }
   const res = await confirmOrder(order.id)
   if (res) {
     showToast({ message: '确认收货成功', type: 'success' })

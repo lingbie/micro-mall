@@ -7,7 +7,7 @@ async function callRagSession(sessionId, message) {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 30000)
-    const resp = await fetch('http://127.0.0.1:8361/rag/session/query', {
+    const resp = await fetch(`${config.ragUrl}/rag/session/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, message }),
@@ -29,7 +29,7 @@ async function getRagHistory(sessionId) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 8000)
     const resp = await fetch(
-      `http://127.0.0.1:8361/rag/session/history?session_id=${encodeURIComponent(sessionId)}`,
+      `${config.ragUrl}/rag/session/history?session_id=${encodeURIComponent(sessionId)}`,
       { signal: controller.signal }
     )
     clearTimeout(timer)

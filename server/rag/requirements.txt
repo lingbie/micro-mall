@@ -1,0 +1,8 @@
+# RAG 客服知识服务依赖
+# 版本与本地 .venv（Python 3.11.9）对齐，已剔除 Windows 专用项；容器基础镜像 python:3.11-slim
+fastapi==0.141.1
+uvicorn==0.52.4
+pydantic==2.13.5
+redis==8.1.0
+httpx==0.28.1
+llama-index-core==0.14.24

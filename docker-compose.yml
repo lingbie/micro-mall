@@ -1,0 +1,126 @@
+# 微商城一键容器化编排：mysql + redis + backend + rag + web(nginx)
+# 用法：
+#   1) 在 my-shop/ 下复制 .env.example 为 .env 并填写密钥
+#   2) docker compose up -d --build
+#   3) 浏览器打开 http://localhost:8080 （演示账号 demo1 / 123456）
+# 说明：密钥由本文件从根 .env 插值注入，不打进镜像；服务间通过默认网络以服务名互访
+# 注意：容器化后以 Docker 的 MySQL/Redis 为准，请先停用本机解压版 MySQL/后端/RAG，避免端口冲突
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: myshop-mysql
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-myshop123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-myshop}
+    ports:
+      # 宿主机端口可用 MYSQL_HOST_PORT 覆盖；与本机解压版 MySQL 冲突时改为 3307
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 首次初始化（空数据卷）时执行：建库建表 + 灌入 42 分类/144 商品
+      - ./server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: myshop-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rag:
+    build:
+      context: ./server/rag
+      dockerfile: Dockerfile
+    container_name: myshop-rag
+    restart: unless-stopped
+    environment:
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      SILICONFLOW_MODEL: ${SILICONFLOW_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      # rag_server.py 优先读进程环境变量；容器网络内以服务名 redis 访问
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8361:8361"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8361/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: myshop-backend
+    restart: unless-stopped
+    environment:
+      PORT: 8360
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-myshop123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-myshop}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      # 前端经 nginx 同源反代访问后端，CORS 实际不触发；此处给出容器化默认白名单
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      SILICONFLOW_MODEL: ${SILICONFLOW_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      # 容器网络内以服务名 rag 访问 RAG 服务
+      RAG_SERVER_URL: http://rag:8361
+    ports:
+      - "8360:8360"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      # 松依赖：rag 未就绪时后端仍可启动，AI 客服自动回退纯 LLM
+      rag:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8360/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: myshop-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+  redis_data:

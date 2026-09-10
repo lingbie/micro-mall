@@ -33,7 +33,17 @@ def load_env(path):
 
 ROOT = os.path.abspath(os.path.join(BASE, '..', '..'))
 env = load_env(os.path.join(ROOT, '.env'))
-API_KEY = env.get('SILICONFLOW_API_KEY', '')
+
+
+def _cfg(key, default=''):
+    """配置读取优先级：进程环境变量(Docker/compose 注入) > .env 文件 > 默认值"""
+    val = os.environ.get(key)
+    if val is None or val == '':
+        val = env.get(key, default)
+    return val
+
+
+API_KEY = _cfg('SILICONFLOW_API_KEY', '')
 
 import redis as redis_lib
 
@@ -47,7 +57,7 @@ from llama_index.core.node_parser import MarkdownNodeParser
 from siliconflow_embedding import SiliconFlowEmbedding
 from siliconflow_llm import SiliconFlowLLM
 
-MODEL = env.get('SILICONFLOW_MODEL', 'Qwen/Qwen2.5-7B-Instruct')
+MODEL = _cfg('SILICONFLOW_MODEL', 'Qwen/Qwen2.5-7B-Instruct')
 Settings.llm = SiliconFlowLLM(api_key=API_KEY, model=MODEL, temperature=0.3)
 Settings.embed_model = SiliconFlowEmbedding(api_key=API_KEY, model='BAAI/bge-m3')
 Settings.node_parser = MarkdownNodeParser()
@@ -55,8 +65,8 @@ Settings.node_parser = MarkdownNodeParser()
 STORAGE_DIR = os.path.join(BASE, 'storage')
 
 # ---------------- Redis 会话 ----------------
-REDIS_HOST = env.get('REDIS_HOST', '127.0.0.1')
-REDIS_PORT = int(env.get('REDIS_PORT', '6379'))
+REDIS_HOST = _cfg('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = int(_cfg('REDIS_PORT', '6379'))
 SESSION_TTL = 7 * 24 * 3600      # 会话保留 7 天
 HISTORY_LIMIT = 12               # 每会话保留最近 12 条消息
 

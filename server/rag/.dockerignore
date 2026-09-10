@@ -1,0 +1,7 @@
+# Windows 本地虚拟环境与 Python 缓存不进入镜像（依赖改由 requirements.txt 安装）
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+# 备份文件无需进入运行时镜像
+*.bak

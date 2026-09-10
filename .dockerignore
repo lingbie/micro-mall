@@ -1,0 +1,14 @@
+# web 服务的构建上下文为仓库根（见 docker-compose.yml: context: .）
+# Docker 从「上下文根」读取 .dockerignore，故本文件位于仓库根而非 web/
+# 仅保留前端打包所需：package*.json / vite.config.js / index.html / src / public / web
+node_modules
+dist
+.git
+.gitignore
+server
+tests
+*.log
+.env
+.env.*
+mysql
+start_all.ps1

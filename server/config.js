@@ -20,6 +20,8 @@ module.exports = {
     .split(',')
     .map(s => s.trim())
     .filter(Boolean),
+  // RAG 客服知识服务地址（Docker 内为 http://rag:8361，本地默认 127.0.0.1:8361）
+  ragUrl: process.env.RAG_SERVER_URL || 'http://127.0.0.1:8361',
   // 硅基流动（SiliconFlow）AI 客服配置
   // API Key 获取: https://cloud.siliconflow.cn -> API 密钥 -> 新建
   siliconflow: {

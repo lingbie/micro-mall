@@ -195,6 +195,47 @@ def _retrieve_context(message):
         return []
 
 
+# ---------------- 追问改写：结合历史把"那90的呢"补全为独立查询 ----------------
+# 短消息或含省略指代的追问，单靠原文检索会跑偏（如"那90的呢"检索出无关品类）
+_FOLLOWUP_PAT = re.compile(
+    r'那|这个|那个|它|它们|呢|吗$|上面|刚才|前面|第一|第二|再来|还是|也|'
+    r'多少钱|价格|售价|贵不贵|便宜|有没有|还有什么|换个|换成'
+)
+_REWRITE_PROMPT = (
+    '你是电商客服的查询改写器。请结合对话历史，把用户最新这句话改写成一个独立、'
+    '完整、适合用于知识库向量检索的查询语句。要求：\n'
+    '1) 补全省略的品类和指代（如"这个""第一个"指上一轮提到的商品类型）；\n'
+    '2) 保留用户提到的全部条件（价格、数量、用途等）；\n'
+    '3) 只输出改写后的查询语句本身，不要任何解释或前缀。\n\n'
+    '对话历史：\n{hist}\n\n用户最新输入：{msg}\n\n改写后的查询：'
+)
+
+
+def _needs_rewrite(message, history):
+    """有历史且当前消息较短或含省略指代时，才触发改写（避免每轮都多一次 LLM 调用）"""
+    if not history:
+        return False
+    return len(message) <= 20 or bool(_FOLLOWUP_PAT.search(message))
+
+
+def _rewrite_query(message, history):
+    """用 LLM 结合最近几轮历史，把省略式追问改写成语义完整的检索查询"""
+    try:
+        hist = '\n'.join(
+            f"{'用户' if h['role'] == 'user' else '客服'}：{h['content']}"
+            for h in history[-6:]
+        )
+        prompt = _REWRITE_PROMPT.format(hist=hist, msg=message)
+        resp = Settings.llm.chat([ChatMessage(role=MessageRole.USER, content=prompt)])
+        q = (resp.message.content or '').strip()
+        # 清理模型可能带出的前缀/引号，只取第一行
+        q = q.splitlines()[0].strip().strip('"“”\'「」')
+        q = re.sub(r'^(改写后的查询|查询|检索词)[:：]\s*', '', q)
+        return q if q else message
+    except Exception:
+        return message
+
+
 def _compose_and_answer(message, history, nodes, extra_hint=None):
     """组装 prompt（系统 + 历史 + 知识片段）并调用 LLM"""
     ctx_text = '\n\n'.join(n.get_content() for n in nodes[:2]) or '（无相关知识）'
@@ -326,19 +367,22 @@ def health():
 
 @app.post('/rag/query', response_model=QueryOut)
 def query(body: QueryIn):
-    nodes = _retrieve_context(body.message)
-    sources = _sources_from_nodes(nodes)
     history = [{'role': m['role'], 'content': m['content']} for m in body.history[:6]
                if m.get('role') in ('user', 'assistant') and m.get('content')]
+    search_query = _rewrite_query(body.message, history) if _needs_rewrite(body.message, history) else body.message
+    nodes = _retrieve_context(search_query)
+    sources = _sources_from_nodes(nodes)
     reply = _answer_with_check(body.message, history, nodes)
     return QueryOut(reply=reply, sources=sources)
 
 
 @app.post('/rag/session/query', response_model=SessionQueryOut)
 def session_query(body: SessionQueryIn):
-    """多轮会话：读 Redis 历史 → 检索 → LLM → 写回 Redis"""
+    """多轮会话：读 Redis 历史 → 追问改写 → 检索 → LLM → 写回 Redis"""
     history = load_history(body.session_id)
-    nodes = _retrieve_context(body.message)
+    # 追问改写：把"那90的呢"结合历史补全为"90元左右的护肤产品"，避免检索跑偏
+    search_query = _rewrite_query(body.message, history) if _needs_rewrite(body.message, history) else body.message
+    nodes = _retrieve_context(search_query)
     sources = _sources_from_nodes(nodes)
     reply = _answer_with_check(body.message, history, nodes)
     append_history(body.session_id, 'user', body.message)

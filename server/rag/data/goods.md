@@ -37,10 +37,10 @@
 
 在售商品列表：
 
-- 【编号13】精酿原浆啤酒，售价89.00元，库存500件，已售514件，详情页 http://localhost:5173/goodsDetail/13，款式图 /images/mock/goods_10_4.jpg。
+- 【编号13】精酿原浆啤酒，售价89.00元，库存500件，已售514件，详情页 http://localhost:5173/goodsDetail/13，款式图 /images/mock/goods_10_1.jpg。
 - 【编号14】冰爽可乐，售价49.90元，库存500件，已售908件，详情页 http://localhost:5173/goodsDetail/14，款式图 /images/mock/goods_10_3.jpg。
 - 【编号15】NFC鲜榨橙汁，售价39.90元，库存500件，已售200件，详情页 http://localhost:5173/goodsDetail/15，款式图 /images/mock/goods_10_2.jpg。
-- 【编号16】天然饮用矿泉水，售价29.90元，库存500件，已售878件，详情页 http://localhost:5173/goodsDetail/16，款式图 /images/mock/goods_10_1.jpg。
+- 【编号16】天然饮用矿泉水，售价29.90元，库存500件，已售878件，详情页 http://localhost:5173/goodsDetail/16，款式图 /images/mock/goods_10_4.jpg。
 
 ## 食品 - 调味品
 
@@ -118,7 +118,7 @@
 
 在售商品列表：
 
-- 【编号49】曜石黑三摄手机，售价2999.00元，库存500件，已售707件，详情页 http://localhost:5173/goodsDetail/49，款式图 /images/mock/goods_19_4.jpg。
+- 【编号49】曜石黑三摄手机，售价2999.00元，库存498件，已售709件，详情页 http://localhost:5173/goodsDetail/49，款式图 /images/mock/goods_19_4.jpg。
 - 【编号50】皓月白全面屏手机，售价1999.00元，库存500件，已售723件，详情页 http://localhost:5173/goodsDetail/50，款式图 /images/mock/goods_19_3.jpg。
 - 【编号51】海蓝渐变手机，售价1699.00元，库存500件，已售496件，详情页 http://localhost:5173/goodsDetail/51，款式图 /images/mock/goods_19_2.jpg。
 - 【编号52】星黛紫三摄手机，售价2599.00元，库存500件，已售212件，详情页 http://localhost:5173/goodsDetail/52，款式图 /images/mock/goods_19_1.jpg。

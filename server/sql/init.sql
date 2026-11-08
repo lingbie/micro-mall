@@ -433,6 +433,16 @@ UPDATE goods SET name = CASE id
   WHEN 144 THEN '带灯化妆镜'
 END;
 
+-- 图片文件实际内容校正：酒水饮料子分类的图片生成顺序与商品序号错位
+-- （实测：_1=啤酒瓶 / _2=橙汁 / _3=可乐罐 / _4=矿泉水）
+UPDATE goods SET pic_url = CASE id
+  WHEN 13 THEN '/images/mock/goods_10_1.jpg'
+  WHEN 14 THEN '/images/mock/goods_10_3.jpg'
+  WHEN 15 THEN '/images/mock/goods_10_2.jpg'
+  WHEN 16 THEN '/images/mock/goods_10_4.jpg'
+END
+WHERE id IN (13, 14, 15, 16);
+
 -- 商品相册：第 1 张用商品专属图（轮播首图差异化），第 2/3 张用分类细分图
 INSERT INTO goods_album (goods_id, pic_url, sort)
 SELECT g.id, CONCAT('/images/mock/goods_', c.id, '_', t.k, '.jpg'), 1

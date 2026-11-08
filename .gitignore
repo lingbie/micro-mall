@@ -26,3 +26,6 @@ __pycache__/
 *.bak
 .DS_Store
 Thumbs.db
+
+# 本机个人环境脚本（含本机路径，勿入库）
+start_all.ps1

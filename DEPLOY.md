@@ -1,7 +1,7 @@
 # 微商城阿里云 ECS 部署指南（纯 IP + HTTP）
 
-目标服务器：**阿里云 ECS `120.26.82.124`**  
-访问方式：**http://120.26.82.124**（80 端口，无域名，无 HTTPS）
+目标服务器：**阿里云 ECS `<SERVER_IP>`**  
+访问方式：**http://<SERVER_IP>**（80 端口，无域名，无 HTTPS）
 
 ---
 
@@ -33,7 +33,7 @@
 ### 方式 A：Git 拉取（推荐）
 
 ```bash
-ssh root@120.26.82.124
+ssh root@<SERVER_IP>
 cd /opt
 git clone <你的仓库地址> my-shop
 cd my-shop
@@ -44,7 +44,7 @@ cd my-shop
 **在你本机（Windows PowerShell）执行：**
 
 ```powershell
-cd c:\Users\lingb\Desktop\chapter08\my-shop
+cd <项目本地路径>
 
 # 打包（排除 node_modules / dist / 虚拟环境）
 tar --exclude=node_modules --exclude=dist --exclude=.venv `
@@ -52,10 +52,10 @@ tar --exclude=node_modules --exclude=dist --exclude=.venv `
     -czf my-shop.tar.gz *
 
 # 上传
-scp my-shop.tar.gz root@120.26.82.124:/opt/
+scp my-shop.tar.gz root@<SERVER_IP>:/opt/
 
 # 服务器端解压
-ssh root@120.26.82.124 "mkdir -p /opt/my-shop && tar -xzf /opt/my-shop.tar.gz -C /opt/my-shop && rm /opt/my-shop.tar.gz"
+ssh root@<SERVER_IP> "mkdir -p /opt/my-shop && tar -xzf /opt/my-shop.tar.gz -C /opt/my-shop && rm /opt/my-shop.tar.gz"
 ```
 
 ---
@@ -66,7 +66,7 @@ ssh root@120.26.82.124 "mkdir -p /opt/my-shop && tar -xzf /opt/my-shop.tar.gz -C
 
 ```bash
 cd /opt/my-shop
-bash deploy.sh 120.26.82.124 sk-你的硅基流动APIKey
+bash deploy.sh <SERVER_IP> sk-你的硅基流动APIKey
 ```
 
 > 若暂时没有硅基流动 API Key，可以省略第二个参数，AI 客服接口会降级返回未配置，其他功能不受影响。
@@ -81,7 +81,7 @@ bash deploy.sh 120.26.82.124 sk-你的硅基流动APIKey
 5. 构建 5 个服务的镜像
 6. 启动容器并做健康检查
 
-**看到"部署完成！"提示后，浏览器访问 <http://120.26.82.124>**，演示账号：`demo1 / 123456`
+**看到"部署完成！"提示后，浏览器访问 <http://<SERVER_IP>>**，演示账号：`demo1 / 123456`
 
 > **2026-09 实测记录（服务器 Ubuntu 22.04 / 2C2G）：**
 > - 中科大 `docker.mirrors.ustc.edu.cn`、网易 `hub-mirror.c.163.com` 等镜像已失效，deploy.sh 已更新为实测可用的加速器列表（docker.1ms.run / docker.m.daocloud.io / docker.1panel.live / hub.rat.dev / dockerproxy.net）。
@@ -126,7 +126,7 @@ MYSQL_DATABASE=myshop
 JWT_SECRET=$(openssl rand -hex 32)
 SILICONFLOW_API_KEY=sk-你的key
 SILICONFLOW_MODEL=Qwen/Qwen2.5-7B-Instruct
-CORS_ORIGINS=http://120.26.82.124
+CORS_ORIGINS=http://<SERVER_IP>
 VITE_API_BASE=
 EOF
 chmod 600 .env
@@ -224,7 +224,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ## 七、故障排查
 
-### 7.1 浏览器访问 <http://120.26.82.124> 打不开
+### 7.1 浏览器访问 <http://<SERVER_IP>> 打不开
 
 ```bash
 # 1) 检查 web 容器状态
@@ -252,7 +252,7 @@ docker compose logs --tail=50 backend
 # 常见原因：
 # - MySQL 未就绪 → backend 会自动重试 30 次，等 90 秒
 # - JWT_SECRET 用了默认值 → 生产模式下进程直接退出，看 backend 日志
-# - CORS_ORIGINS 未包含 http://120.26.82.124
+# - CORS_ORIGINS 未包含 http://<SERVER_IP>
 ```
 
 ### 7.3 AI 客服不响应
@@ -274,8 +274,8 @@ docker compose logs -f rag
 # 修改 docker-compose.prod.yml，web 服务改为
 ports:
   - "8080:80"
-# 然后访问 http://120.26.82.124:8080
-# 记得同步更新 .env 的 CORS_ORIGINS=http://120.26.82.124:8080
+# 然后访问 http://<SERVER_IP>:8080
+# 记得同步更新 .env 的 CORS_ORIGINS=http://<SERVER_IP>:8080
 ```
 
 ---
@@ -297,7 +297,7 @@ ports:
 bash deploy.sh <公网IP> [硅基流动APIKey] [--force-env]
 
 # 示例：
-bash deploy.sh 120.26.82.124                          # 首次部署，无 AI Key
-bash deploy.sh 120.26.82.124 sk-xxxxx                 # 首次部署，带 AI Key
-bash deploy.sh 120.26.82.124 sk-xxxxx --force-env     # 强制重建 .env（会覆盖旧的）
+bash deploy.sh <SERVER_IP>                          # 首次部署，无 AI Key
+bash deploy.sh <SERVER_IP> sk-xxxxx                 # 首次部署，带 AI Key
+bash deploy.sh <SERVER_IP> sk-xxxxx --force-env     # 强制重建 .env（会覆盖旧的）
 ```

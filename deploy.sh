@@ -6,8 +6,8 @@
 #   bash deploy.sh <公网IP> [硅基流动API_KEY]
 #
 # 示例：
-#   bash deploy.sh 120.26.82.124
-#   bash deploy.sh 120.26.82.124 sk-xxxxxxxxxxxxxxxx
+#   bash deploy.sh <你的服务器IP>
+#   bash deploy.sh <你的服务器IP> sk-xxxxxxxxxxxxxxxx
 #
 # 脚本是幂等的：可反复执行；已存在的 .env 不会被覆盖（除非加 --force-env）
 
@@ -17,7 +17,7 @@ PUBLIC_IP="${1:-}"
 SILICONFLOW_KEY="${2:-}"
 
 if [[ -z "$PUBLIC_IP" ]]; then
-  echo "[错误] 必须传入公网 IP，例如：bash deploy.sh 120.26.82.124"
+  echo "[错误] 必须传入公网 IP，例如：bash deploy.sh 1.2.3.4"
   exit 1
 fi
 

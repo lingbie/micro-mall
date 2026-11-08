@@ -49,6 +49,11 @@ DOCS_DIR = os.path.join(BASE, 'data')
 
 def build():
     documents = SimpleDirectoryReader(DOCS_DIR, required_exts=['.md']).load_data()
+    # 元数据里只保留相对路径，避免把本地绝对路径（含用户名）写进索引入库泄露隐私
+    for doc in documents:
+        file_name = doc.metadata.get('file_name', 'goods.md')
+        doc.metadata = {k: v for k, v in doc.metadata.items() if k in ('file_name', 'file_type', 'creation_date')}
+        doc.metadata['file_path'] = f'data/{file_name}'
     print(f'加载文档 {len(documents)} 份')
     index = VectorStoreIndex.from_documents(documents, show_progress=True)
     index.storage_context.persist(persist_dir=STORAGE_DIR)

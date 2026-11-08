@@ -169,4 +169,4 @@ docker logs -f myshop-rag
 
 ## License
 
-仅供学习交流使用。
+本项目基于 [MIT](LICENSE) 协议开源。

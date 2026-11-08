@@ -55,6 +55,8 @@ services:
       # rag_server.py 优先读进程环境变量；容器网络内以服务名 redis 访问
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # AI 客服生成的商品详情页链接前缀；公网部署时在 .env 里设为 http://<公网IP或域名>
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
     ports:
       # 宿主机端口可用 RAG_HOST_PORT 覆盖；与本机 RAG(8361)冲突时改端口
       - "${RAG_HOST_PORT:-8361}:8361"
@@ -88,6 +90,8 @@ services:
       SILICONFLOW_MODEL: ${SILICONFLOW_MODEL:-Qwen/Qwen2.5-7B-Instruct}
       # 容器网络内以服务名 rag 访问 RAG 服务
       RAG_SERVER_URL: http://rag:8361
+      # AI 客服兜底知识生成的商品链接前缀，与 rag 服务保持一致
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
     ports:
       # 宿主机端口可用 BACKEND_HOST_PORT 覆盖；与本机解压版后端(8360)冲突时改端口
       # 容器内部仍监听 8360，web(nginx)经服务名 backend:8360 互访，不受宿主机端口影响

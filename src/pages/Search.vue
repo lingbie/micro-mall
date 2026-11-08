@@ -18,7 +18,7 @@
       @load="onLoad"
     >
       <div class="goods-item" v-for="g in list" :key="g.id" @click="goDetail(g.id)">
-        <img :src="g.pic_url" alt="" />
+        <van-image :src="g.pic_url" alt="" />
         <div class="info">
           <h4>{{ g.name }}</h4>
           <p class="desc">{{ g.desc }}</p>

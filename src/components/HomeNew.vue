@@ -4,22 +4,34 @@
       <h3>每周上新</h3> 
     </div> 
     <ul> 
-      <li v-for="item in newList" :key="item.id"> 
-        <img :src="item.list_pic_url" alt="" /> 
+      <li v-for="item in newList" :key="item.id" @click="goDetail(item.id)"> 
+        <van-image :src="item.pic_url" alt="" /> 
         <p>{{ item.name }}</p> 
-        <p><span>￥</span>{{ item.retail_price }}</p> 
+        <p><span>￥</span>{{ item.price }}</p> 
       </li> 
     </ul> 
   </div> 
 </template> 
  
 <script setup> 
-const newList = [ 
-  { name: '懒人小沙发', list_pic_url: '/images/new1.jpg', retail_price: '128.00' }, 
-  { name: '减压弹力球', list_pic_url: '/images/new2.jpg', retail_price: '89.00' }, 
-  { name: '简约一字夹发夹', list_pic_url: '/images/new3.jpg', retail_price: '12.8' }, 
-  { name: '毛线小兔子耳朵发夹', list_pic_url: '/images/new4.jpg', retail_price: '9.9' } 
-] 
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { getGoodsList } from '../api'
+
+const router = useRouter()
+const newList = ref([])
+
+const goDetail = id => {
+  router.push({ name: 'goodsDetail', params: { id } })
+}
+
+onMounted(async () => {
+  // 获取最新 4 个商品（按 id 倒序，模拟"上新"）
+  const res = await getGoodsList({ page: 1, pageSize: 4 })
+  if (res && res.list) {
+    newList.value = res.list
+  }
+})
 </script> 
  
 <style lang="less" scoped> 

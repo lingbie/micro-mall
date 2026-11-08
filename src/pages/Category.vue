@@ -11,16 +11,14 @@
         >{{ item.name }}</li>
       </ul>
     </div>
-    <!-- 右侧二级分类 -->
-    <div class="right" ref="rightRef">
-      <div class="right-content">
-        <div class="right-item" v-for="cat in categoryList" :key="cat.id">
-          <div class="title">{{ cat.name }}</div>
-          <div class="grid">
-            <div class="grid-item" v-for="g in cat.children" :key="g.id" @click="goGoodsList(g.id)">
-              <img :src="g.pic_url" alt="" />
-              <span>{{ g.name }}</span>
-            </div>
+    <!-- 右侧二级分类：只显示当前选中一级分类的内容（京东式交互，避免连续长列表滚动错位感） -->
+    <div class="right">
+      <div class="right-content" v-if="currentCat">
+        <div class="title">{{ currentCat.name }}</div>
+        <div class="grid">
+          <div class="grid-item" v-for="g in currentCat.children" :key="g.id" :data-id="g.id">
+            <img :src="g.pic_url" alt="" />
+            <span>{{ g.name }}</span>
           </div>
         </div>
       </div>
@@ -29,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import BScroll from '@better-scroll/core'
 import { getCategoryList } from '../api'
@@ -38,51 +36,39 @@ const router = useRouter()
 const categoryList = ref([])
 const activeKey = ref(0)
 const leftRef = ref()
-const rightRef = ref()
 
 let leftScroll = null
-let rightScroll = null
+
+// 当前选中的一级分类（右侧只渲染这一个）
+const currentCat = computed(() => categoryList.value[activeKey.value] || null)
 
 const selectLeft = index => {
   activeKey.value = index
-  // 右侧滚动到对应分类位置
-  if (rightScroll) {
-    const el = document.querySelectorAll('.right-item')[index]
-    if (el) {
-      rightScroll.scrollToElement(el, 300)
-    }
-  }
 }
 
 const goGoodsList = categoryId => {
   router.push({ name: 'goodslist', params: { categoryId } })
 }
 
+// 右侧区域用原生滚动渲染，点击 grid-item 直接跳转（不再依赖 BetterScroll 的 click 转发）
+const onGridClick = e => {
+  const item = e.target && e.target.closest ? e.target.closest('.grid-item') : null
+  if (item && item.dataset.id) {
+    goGoodsList(item.dataset.id)
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('click', onGridClick, true)
   const res = await getCategoryList()
   categoryList.value = res || []
   await nextTick()
   leftScroll = new BScroll(leftRef.value, { click: true })
-  rightScroll = new BScroll(rightRef.value, { click: true, probeType: 3 })
+})
 
 onBeforeUnmount(() => {
+  document.removeEventListener('click', onGridClick, true)
   if (leftScroll) { leftScroll.destroy(); leftScroll = null }
-  if (rightScroll) { rightScroll.destroy(); rightScroll = null }
-})
-  // 右侧滚动时联动左侧高亮
-  rightScroll.on('scroll', () => {
-    const list = document.querySelectorAll('.right-item')
-    const y = -rightScroll.y
-    let current = 0
-    list.forEach((el, index) => {
-      if (el.offsetTop <= y + 1) {
-        current = index
-      }
-    })
-    if (activeKey.value !== current) {
-      activeKey.value = current
-    }
-  })
 })
 </script>
 
@@ -117,38 +103,35 @@ onBeforeUnmount(() => {
   .right {
     flex: 1;
     height: 100%;
-    overflow: hidden;
+    overflow-y: auto;
     .right-content {
       padding: 10px;
-      position: relative;
-      .right-item {
-        margin-bottom: 10px;
-        .title {
-          font-size: 14px;
-          font-weight: bold;
-          color: #333;
-          padding: 8px 0;
-        }
-        .grid {
+      .title {
+        font-size: 14px;
+        font-weight: bold;
+        color: #333;
+        padding: 8px 0;
+      }
+      .grid {
+        display: flex;
+        flex-wrap: wrap;
+        .grid-item {
+          width: 33.33%;
+          box-sizing: border-box;
           display: flex;
-          flex-wrap: wrap;
-          .grid-item {
-            width: 33.33%;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 8px 4px;
-            img {
-              width: 60px;
-              height: 60px;
-              border-radius: 8px;
-              margin-bottom: 5px;
-            }
-            span {
-              font-size: 12px;
-              color: #333;
-            }
+          flex-direction: column;
+          align-items: center;
+          padding: 8px 4px;
+          cursor: pointer;
+          img {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+          }
+          span {
+            font-size: 12px;
+            color: #333;
           }
         }
       }

@@ -13,6 +13,9 @@ app.use(
       // 非浏览器请求（curl/同源）无 origin 头，放行
       if (!origin) return cb(null, true)
       if (config.corsOrigins.includes(origin)) return cb(null, true)
+      // 放行本机 Vite 常用端口段 5173-5180（端口被占时 Vite 会自动 +1）
+      const m = /^https?:\/\/(localhost|127\.0\.0\.1):(517[3-9]|5180)$/.exec(origin)
+      if (m) return cb(null, true)
       return cb(null, false)
     }
   })
@@ -40,6 +43,7 @@ app.use(require('./routes/goods.routes'))
 app.use(require('./routes/cart.routes'))
 app.use(require('./routes/order.routes'))
 app.use(require('./routes/chat.routes'))
+app.use(require('./routes/admin.routes'))
 
 // 404 与全局错误处理（置于所有路由之后）
 app.use(notFound)

@@ -7,18 +7,21 @@
     <van-checkbox-group v-model="checkedGoods" v-else>
       <van-cell-group>
         <van-swipe-cell v-for="item in cartList" :key="item.id">
-          <van-cell :border="false" class="cart-item">
+          <div class="cart-item">
             <van-checkbox :name="item.id" />
             <van-image :src="item.pic_url" class="item-image" />
             <div class="item-info">
-              <h4>{{ item.name }}</h4>
+              <div class="item-head">
+                <h4>{{ item.name }}</h4>
+                <span class="item-delete" @click="deleteItem(item.id)">删除</span>
+              </div>
               <p class="item-desc">{{ item.desc }}</p>
               <div class="item-bottom">
                 <span class="item-price">¥{{ item.price }}</span>
                 <van-stepper v-model="item.quantity" :min="1" @change="onQuantityChange(item)" />
               </div>
             </div>
-          </van-cell>
+          </div>
           <template #right>
             <van-button square text="删除" type="danger" class="delete-btn" @click="deleteItem(item.id)" />
           </template>
@@ -37,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { getCartList, removeCart, updateCart } from '../api'
@@ -123,6 +126,15 @@ const goShopping = () => {
 onMounted(() => {
   loadCart()
 })
+
+// 页面卸载前强制同步未提交的数量修改
+onBeforeUnmount(() => {
+  clearTimeout(qtyTimer)
+  // 如果有待同步的修改，立即提交
+  cartList.value.forEach(item => {
+    updateCart(item.id, item.quantity).catch(() => {})
+  })
+})
 </script>
 
 <style lang="less" scoped>
@@ -148,15 +160,32 @@ onMounted(() => {
     margin-bottom: 0;
     .van-checkbox {
       margin-right: 10px;
+      flex-shrink: 0;
     }
     .item-image {
       width: 80px;
       height: 80px;
       border-radius: 8px;
       margin-right: 10px;
+      flex-shrink: 0;
     }
     .item-info {
       flex: 1;
+      min-width: 0;
+      .item-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        .item-delete {
+          font-size: 12px;
+          color: #999;
+          padding: 2px 6px;
+          flex-shrink: 0;
+          &:active {
+            color: #ee0a24;
+          }
+        }
+      }
       h4 {
         font-size: 14px;
         font-weight: bold;

@@ -1,0 +1,37 @@
+# docker-compose.prod.yml — 生产环境覆盖文件（阿里云 ECS 公网部署用）
+#
+# 与 docker-compose.yml 叠加使用，核心作用：
+#   1) 关闭 mysql/redis/backend/rag 的宿主机端口映射，避免公网扫描攻击
+#   2) 将 web 从 8080 改为 80，让浏览器直接访问 http://<公网IP>/ 无需带端口
+#   3) 强制后端 NODE_ENV=production（触发 config.js 中的密钥强度校验）
+#
+# 启动命令：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# 说明：`!reset []` 是 Compose v2.24+ 语法，用于完全清空基础文件里的 ports 列表
+#       若服务器 Docker 版本较老，改为 `ports: []` 亦可（Compose 会合并追加，需保证基础文件也无冲突）
+
+services:
+  mysql:
+    # 数据库仅容器内网可见，宿主机 3306 不对外暴露
+    ports: !reset []
+
+  redis:
+    # 会话缓存仅容器内网可见
+    ports: !reset []
+
+  rag:
+    # AI 检索服务仅容器内网可见（backend 通过 http://rag:8361 访问）
+    ports: !reset []
+
+  backend:
+    # 后端 API 仅容器内网可见（web/nginx 通过 http://backend:8360 反代）
+    ports: !reset []
+    environment:
+      NODE_ENV: production
+
+  web:
+    # 唯一对外服务：80 端口（HTTP）
+    # !override 完全替换基础文件的 8080 映射，只保留 80:80，避免多余端口暴露
+    # 有域名 + HTTPS 后可扩展为 ["80:80", "443:443"] 并挂载证书目录
+    ports: !override ["80:80"]

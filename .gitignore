@@ -14,6 +14,14 @@ dist/
 # 日志
 *.log
 
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 部署临时包
+*.tar.gz
+*.tgz
+
 # 备份与系统文件
 *.bak
 .DS_Store

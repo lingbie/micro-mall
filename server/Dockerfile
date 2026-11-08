@@ -4,8 +4,9 @@ FROM node:20-alpine
 WORKDIR /app
 
 # 仅安装生产依赖（jest/supertest 等 devDependencies 不进镜像）
+# 国内部署：将 lockfile 中的 npm 官方源替换为 npmmirror 镜像加速
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN sed -i 's|https://registry.npmjs.org/|https://registry.npmmirror.com/|g' package-lock.json && npm ci --omit=dev
 
 # 拷贝后端源码（含 scripts/seed.js）
 COPY . .

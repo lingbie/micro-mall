@@ -95,11 +95,11 @@ const submit = async () => {
   })
   submitting.value = false
   if (res) {
-    // 下单成功，删除购物车中已结算的项，并用服务端返回的最新列表同步角标
-    for (const item of items.value) {
-      const delRes = await removeCart(item.id)
-      if (delRes) cartStore.setCart(delRes)
-    }
+    // 下单成功，并行删除购物车中已结算的项
+    await Promise.all(items.value.map(item => removeCart(item.id)))
+    // 重新拉取购物车同步角标
+    const cartRes = await getCartList()
+    cartStore.setCart(cartRes || [])
     showToast({ message: '下单成功', type: 'success' })
     setTimeout(() => router.replace({ name: 'orderList' }), 800)
   }

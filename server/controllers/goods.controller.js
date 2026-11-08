@@ -10,13 +10,20 @@ async function getGoodsList(req, res) {
   try {
     let where = 'WHERE 1=1'
     const params = []
+    // 用户端只展示上架商品；后台商品管理走独立接口
+    where += ' AND g.status = 1'
     if (categoryId) {
-      where += ' AND g.category_id = ?'
-      params.push(categoryId)
+      // 支持一级分类（自动包含其全部二级分类的商品）与二级分类（精确匹配）
+      where += ' AND g.category_id IN (SELECT id FROM category WHERE id = ? OR parent_id = ?)'
+      params.push(categoryId, categoryId)
     }
     if (keyword) {
-      where += ' AND (g.name LIKE ? OR g.`desc` LIKE ?)'
-      params.push(`%${keyword}%`, `%${keyword}%`)
+      // 匹配商品名/描述，或商品所属分类名及其父分类名（如搜"男装"能找到男装分类下所有商品）
+      where +=
+        ' AND (g.name LIKE ? OR g.`desc` LIKE ? OR g.category_id IN (' +
+        'SELECT c.id FROM category c LEFT JOIN category p ON c.parent_id = p.id ' +
+        'WHERE c.name LIKE ? OR p.name LIKE ?))'
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`)
     }
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM goods g ${where}`, params)
     const [list] = await pool.query(
@@ -45,7 +52,7 @@ async function getGoodsDetail(req, res) {
               COALESCE(g.pic_url, c.pic_url) AS pic_url
        FROM goods g
        LEFT JOIN (SELECT id AS cat_id, pic_url FROM category) c ON c.cat_id = g.category_id
-       WHERE g.id = ?`,
+       WHERE g.id = ? AND g.status = 1`,
       [id]
     )
     if (!rows.length) return res.json(fail('商品不存在'))
@@ -61,10 +68,11 @@ async function getGoodsAlbum(req, res) {
   if (!id) return res.json(fail('缺少商品 id'))
   try {
     const [rows] = await pool.query(
-      'SELECT pic_url FROM goods_album WHERE goods_id = ? ORDER BY sort, id',
+      'SELECT pic_url FROM goods WHERE id = ?',
       [id]
     )
-    res.json(ok(rows.map(r => r.pic_url)))
+    if (!rows.length) return res.json(fail('商品不存在'))
+    res.json(ok([rows[0].pic_url]))
   } catch (e) {
     console.error('[goods album]', e)
     res.json(fail('获取商品相册失败'))

@@ -6,6 +6,9 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   server: {
+    // 5173 为本项目固定端口；strictPort 保证端口被占时报错而非静默换端口导致 CORS 断连
+    port: 5173,
+    strictPort: true,
     proxy: {
       // 本地开发：/home 代理到后端(8360)，免 CORS（与 Docker 的 nginx 同源策略一致）
       '/home': {

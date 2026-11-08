@@ -27,7 +27,7 @@
     <!-- 底部操作栏 -->
     <van-action-bar>
       <van-action-bar-icon icon="cart-o" text="购物车" @click="goCart" />
-      <van-action-bar-icon icon="star-o" text="收藏" @click="collect" />
+      <van-action-bar-icon icon="star-o" text="收藏" disabled />
       <van-action-bar-button type="warning" text="加入购物车" @click="addToCart" />
       <van-action-bar-button type="danger" text="立即购买" @click="buyNow" />
     </van-action-bar>

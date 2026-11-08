@@ -8,6 +8,8 @@ module.exports = {
   // 上线前必须更换：JWT 签名密钥应使用随机长字符串
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
   jwtExpires: '7d',
+  // 管理后台管理员账号（与 users 表 username 对应）
+  adminUsername: process.env.ADMIN_USERNAME || 'admin',
   db: {
     host: process.env.MYSQL_HOST || '127.0.0.1',
     port: Number(process.env.MYSQL_PORT || 3306),
@@ -29,4 +31,16 @@ module.exports = {
     model: process.env.SILICONFLOW_MODEL || 'Qwen/Qwen2.5-7B-Instruct',
     baseUrl: 'https://api.siliconflow.cn/v1'
   }
+}
+
+// 生产环境安全检查：JWT_SECRET 不能使用默认值
+if (process.env.NODE_ENV === 'production' && module.exports.jwtSecret === 'dev-secret-change-me') {
+  console.error('[FATAL] 生产环境必须配置 JWT_SECRET，请在 .env 中设置随机长字符串')
+  process.exit(1)
+}
+
+// 生产环境安全检查：CORS_ORIGINS 必须显式配置
+if (process.env.NODE_ENV === 'production' && module.exports.corsOrigins.length === 0) {
+  console.error('[FATAL] 生产环境必须配置 CORS_ORIGINS，请在 .env 中设置允许的域名')
+  process.exit(1)
 }

@@ -128,6 +128,8 @@ def clear_history(sid):
 
 # ---------------- 检索与回答 ----------------
 
+FRONTEND_URL = _cfg('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+
 SYSTEM_PROMPT = (
     '你是微商城的智能客服小助手。请基于【知识库参考内容】回答用户问题，'
     '回答要求：1) 优先引用知识库中的信息，涉及商品价格、库存、销量、编号等数字时，'
@@ -136,10 +138,16 @@ SYSTEM_PROMPT = (
     '回答格式为"XX.XX元"（如知识库原文"售价329.00元"则回答"329.00元"），'
     '禁止自行补全、四舍五入之外的改写、禁止编造知识库中没有的价格数字；'
     '若知识库参考内容中找不到该商品的价格，必须如实回答"知识库暂无该商品的价格信息"，'
-    '绝不猜测或杜撰价格；3) 推荐商品时列出商品名称和价格即可，必要时补充库存与销量，'
-    '不要编造知识库中没有的数字；4) 知识库没有明确信息的，基于常识友好作答，并说明仅供参考；'
+    '绝不猜测或杜撰价格；3) 推荐或谈及具体商品时，除名称和价格外，'
+    f'必须在商品名称后附上知识库中给出的详情页链接，链接用纯文本 URL 原样写出'
+    f'（形如 {FRONTEND_URL}/goodsDetail/编号），禁止使用 Markdown 链接语法或改写链接，'
+    '让用户可以直接点击，必要时补充库存与销量，不要编造知识库中没有的数字；'
+    '3.5) 用户询问款式、外观、图片时，把知识库中该商品的款式图地址（/images/ 开头的图片路径）'
+    '原样写在回答里，聊天界面会自动显示图片；'
+    '4) 知识库没有明确信息的，基于常识友好作答，并说明仅供参考；'
     '5) 结合历史对话理解用户意图（如"第一个"指上一轮提到的商品）；'
-    '6) 语言自然、简洁，用中文回答。'
+    '6) 回答中不要出现【编号N】这类知识库内部标记，直接说商品名称即可；'
+    '7) 语言自然、简洁，用中文回答。'
 )
 
 app = FastAPI(title='微商城 RAG 客服知识服务')
@@ -232,12 +240,40 @@ def _prices_in_text(text):
     return out
 
 
+def _ensure_links(answer, nodes):
+    """确定性补链补图：回答中谈到了知识库某商品，但缺少其详情页链接或款式图时自动补上"""
+    for node in nodes[:2]:
+        for line in (node.get_content() or '').splitlines():
+            m = re.search(r'【编号(\d+)】([^，。,、\n]+)', line)
+            if not m:
+                continue
+            gid, name = m.group(1), m.group(2).strip()
+            key = name[:5]  # 前 5 字符做包含匹配，容忍模型轻微改写
+            if not (key and key in answer):
+                continue
+            pm = re.search(r'款式图\s*(\S+?)。', line)
+            pic = pm.group(1) if pm else None
+            additions = []
+            if f'/goodsDetail/{gid}' not in answer:
+                additions.append(f'详情页：{FRONTEND_URL}/goodsDetail/{gid}')
+            if pic and pic not in answer:
+                additions.append(f'款式图：{pic}')
+            if additions:
+                answer += '\n' + ' ｜ '.join(additions)
+    # 确定性兜底：剥离模型可能带出的知识库内部编号标记
+    answer = re.sub(r'【编号\d+】', '', answer)
+    # 知识库内嵌的链接可能是开发环境前缀(localhost:5173)，统一改写为当前部署的 FRONTEND_URL
+    if FRONTEND_URL not in ('http://localhost:5173', 'http://127.0.0.1:5173'):
+        answer = re.sub(r'https?://(?:localhost|127\.0\.0\.1):5173(/goodsDetail/)', FRONTEND_URL + r'\1', answer)
+    return answer
+
+
 def _answer_with_check(message, history, nodes):
     """调用 LLM 后做价格一致性自检：回答中出现知识库没有的价格则带更正提示重试一次"""
     answer = _compose_and_answer(message, history, nodes)
     kb_prices = _load_kb_prices()
     if not kb_prices:
-        return answer  # 知识库价格集不可用时跳过自检
+        return _ensure_links(answer, nodes)  # 知识库价格集不可用时跳过自检
     fakes = [p for p in _prices_in_text(answer) if p not in kb_prices]
     if fakes:
         hint = ('你刚才的回答中出现了知识库中不存在的价格数字（'
@@ -245,7 +281,7 @@ def _answer_with_check(message, history, nodes):
                 + ' 元）。请重新回答：所有价格必须逐字引用【知识库参考内容】中的原价，'
                 '知识库没有的价格信息就回答"知识库暂无该商品的价格信息"，严禁编造价格。')
         answer = _compose_and_answer(message, history, nodes, extra_hint=hint)
-    return answer
+    return _ensure_links(answer, nodes)
 
 
 class QueryIn(BaseModel):

@@ -5,8 +5,9 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 先装依赖，利用构建层缓存（源码变动不触发重装）
+# 国内部署：使用阿里云 PyPI 镜像加速，避免 files.pythonhosted.org 超时
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --timeout 120 --retries 5 -r requirements.txt
 
 # 拷贝服务代码、本地 SiliconFlow 集成、知识库(data)与已构建的向量索引(storage)
 COPY . .

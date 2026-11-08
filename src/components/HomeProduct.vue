@@ -1,8 +1,8 @@
 <template> 
   <div class="home-product"> 
     <ul> 
-      <li v-for="item in brandList" :key="item.id"> 
-        <img :src="item.pic_url" alt=""> 
+      <li v-for="item in categoryList" :key="item.id" @click="goCategory(item.id)"> 
+        <van-image :src="item.pic_url" alt="" /> 
         <h4>{{ item.name }}</h4> 
       </li> 
     </ul> 
@@ -10,12 +10,28 @@
 </template> 
  
 <script setup> 
-const brandList = [ 
-  { id: 1, name: '直播', pic_url: '/images/product1.png' }, 
-  { id: 2, name: '推荐', pic_url: '/images/product2.png' }, 
-  { id: 3, name: '补贴', pic_url: '/images/product3.png' }, 
-  { id: 4, name: '分享', pic_url: '/images/product4.png' } 
-]  
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { getCategoryList } from '../api'
+
+const router = useRouter()
+const categoryList = ref([])
+
+const goCategory = categoryId => {
+  router.push({ name: 'goodslist', params: { categoryId } })
+}
+
+onMounted(async () => {
+  // 获取一级分类（前 4 个）
+  const res = await getCategoryList()
+  if (res && res.length) {
+    categoryList.value = res.slice(0, 4).map(c => ({
+      id: c.id,
+      name: c.name,
+      pic_url: c.children?.[0]?.pic_url || '/images/product1.png'
+    }))
+  }
+})
 </script> 
  
 <style lang="less" scoped> 

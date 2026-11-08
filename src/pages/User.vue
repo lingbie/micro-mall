@@ -42,15 +42,16 @@
       </div>
     </van-cell-group>
     <van-cell-group class="menu-group">
+      <van-cell icon="headphones-o" title="客服中心" is-link @click="openService" />
+      <van-cell icon="info-o" title="关于我们" is-link @click="about" />
+    </van-cell-group>
+    <!-- 以下功能开发中，暂时隐藏 -->
+    <van-cell-group class="menu-group" v-if="false">
       <van-cell icon="gift-o" title="优惠券" value="敬请期待" is-link @click="devTip" />
       <van-cell icon="ticket-o" title="积分商城" value="敬请期待" is-link @click="devTip" />
       <van-cell icon="heart-o" title="我的收藏" is-link @click="devTip" />
       <van-cell icon="map-marker-o" title="收货地址" is-link @click="devTip" />
       <van-cell icon="settings-o" title="设置" is-link @click="devTip" />
-    </van-cell-group>
-    <van-cell-group class="menu-group">
-      <van-cell icon="headphones-o" title="客服中心" is-link @click="openService" />
-      <van-cell icon="info-o" title="关于我们" is-link @click="about" />
     </van-cell-group>
     <van-button v-if="userStore.user.isLogin" block type="danger" round @click="logout">退出登录</van-button>
   </div>

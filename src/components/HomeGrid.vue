@@ -23,24 +23,24 @@ import menu9 from '../assets/images/menu9.png'
 import menu10 from '../assets/images/menu10.png' 
  
 const menulist = [ 
-  { text: '今日爆款', url: menu1 }, 
-  { text: '好物分享', url: menu2 }, 
-  { text: '推荐购买', url: menu3 }, 
-  { text: '购物心得', url: menu4 }, 
-  { text: '直播专区', url: menu5 }, 
-  { text: '签到中心', url: menu6 }, 
-  { text: '值得购买', url: menu7 }, 
-  { text: '每日优惠', url: menu8 }, 
-  { text: '充值中心', url: menu9 }, 
-  { text: '我的客服', url: menu10 } 
+  { text: '今日爆款', url: menu1, comingSoon: true }, 
+  { text: '好物分享', url: menu2, comingSoon: true }, 
+  { text: '推荐购买', url: menu3, comingSoon: true }, 
+  { text: '购物心得', url: menu4, comingSoon: true }, 
+  { text: '直播专区', url: menu5, comingSoon: true }, 
+  { text: '签到中心', url: menu6, comingSoon: true }, 
+  { text: '值得购买', url: menu7, comingSoon: true }, 
+  { text: '每日优惠', url: menu8, comingSoon: true }, 
+  { text: '充值中心', url: menu9, comingSoon: true }, 
+  { text: '我的客服', url: menu10, comingSoon: false } 
 ] 
 
 const onMenuClick = item => {
   if (item.text === '我的客服') {
     // 唤起全局悬浮客服面板
     window.dispatchEvent(new Event('open-customer-service'))
-  } else {
-    showToast(item.text + '功能开发中')
+  } else if (item.comingSoon) {
+    showToast(item.text + ' 即将上线，敬请期待')
   }
 }
 

@@ -42,12 +42,17 @@ async function getRagHistory(sessionId) {
   }
 }
 
-// 组装商品知识：分类 + 热销商品，注入系统提示词（RAG 不可用时的兜底知识）
+// 组装商品知识：分类 + 热销商品（含详情页链接），注入系统提示词（RAG 不可用时的兜底知识）
 async function buildShopKnowledge() {
   const [cats] = await pool.query('SELECT name FROM category WHERE parent_id = 0 ORDER BY sort, id')
-  const [hots] = await pool.query('SELECT name, price FROM goods ORDER BY sales DESC, id LIMIT 8')
+  const [hots] = await pool.query(
+    'SELECT id, name, price, pic_url FROM goods WHERE status = 1 ORDER BY sales DESC, id LIMIT 8'
+  )
   const catText = cats.map(c => c.name).join('、')
-  const hotText = hots.map(g => `${g.name}（¥${g.price}）`).join('、')
+  const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+  const hotText = hots
+    .map(g => `${g.name}（¥${g.price}，详情页 ${base}/goodsDetail/${g.id}，款式图 ${g.pic_url}）`)
+    .join('、')
   return `【商城概览】分类：${catText}。热销商品：${hotText}。`
 }
 

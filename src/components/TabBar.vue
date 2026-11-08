@@ -2,7 +2,8 @@
   <van-tabbar route fixed placeholder border>
     <van-tabbar-item replace :to="{ name: 'home' }" icon="home-o">首页</van-tabbar-item>
     <van-tabbar-item replace :to="{ name: 'category'}" icon="apps-o">分类</van-tabbar-item>
-    <van-tabbar-item replace :to="{ name: 'message'}" icon="chat-o">消息</van-tabbar-item>
+    <!-- 消息功能开发中，暂时隐藏 -->
+    <van-tabbar-item v-if="false" replace :to="{ name: 'message'}" icon="chat-o">消息</van-tabbar-item>
     <van-tabbar-item replace :to="{ name: 'cart'}" icon="shopping-cart-o" :badge="cartBadge">购物车</van-tabbar-item>
     <van-tabbar-item replace :to="{ name: 'user'}" icon="user-o">我的</van-tabbar-item>
   </van-tabbar>

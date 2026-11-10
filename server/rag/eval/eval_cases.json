@@ -1,0 +1,155 @@
+{
+  "_comment": "RAG 客服回归评测集。turns 按顺序发给 /rag/query（history 由评测器串联）；expect.contain_any 满足其一即可，contains_all 必须全部命中，not_contains 禁止出现。价格数字必须与知识库完全一致。",
+  "cases": [
+    {
+      "id": "price_01",
+      "category": "商品价格",
+      "turns": ["商务免烫衬衫多少钱？"],
+      "expect": { "contains_any": ["119.00元"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "price_02",
+      "category": "商品价格",
+      "turns": ["编号49的手机什么价格？"],
+      "expect": { "contains_any": ["2999.00元"], "contains_all": ["/goodsDetail/49"], "not_contains": [] }
+    },
+    {
+      "id": "price_03",
+      "category": "商品价格",
+      "turns": ["东北珍珠香米卖多少钱？"],
+      "expect": { "contains_any": ["49.90元"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "price_04",
+      "category": "价格不编造",
+      "turns": ["保温杯多少钱？"],
+      "expect": { "contains_any": ["暂无"], "contains_all": [], "not_contains": ["元）"] }
+    },
+    {
+      "id": "price_05",
+      "category": "商品价格",
+      "turns": ["透明防摔手机壳什么价位？"],
+      "expect": { "contains_any": ["39.90元"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "price_06",
+      "category": "区间选品",
+      "turns": ["有没有2000元以内的手机推荐？"],
+      "expect": { "contains_any": ["1999.00元", "1699.00元"], "contains_all": [], "not_contains": ["2999.00元"] }
+    },
+    {
+      "id": "link_01",
+      "category": "详情页链接",
+      "turns": ["精酿原浆啤酒多少钱，给我链接"],
+      "expect": { "contains_any": ["89.00元"], "contains_all": ["/goodsDetail/13"], "not_contains": [] }
+    },
+    {
+      "id": "link_02",
+      "category": "详情页链接",
+      "turns": ["推荐一款护眼台灯"],
+      "expect": { "contains_any": ["149.00元"], "contains_all": ["/goodsDetail/95"], "not_contains": [] }
+    },
+    {
+      "id": "stock_01",
+      "category": "库存销量",
+      "turns": ["玻尿酸保湿面霜还有货吗？"],
+      "expect": { "contains_any": ["500件", "库存"], "contains_all": ["/goodsDetail/122"], "not_contains": [] }
+    },
+    {
+      "id": "stock_02",
+      "category": "库存销量",
+      "turns": ["特级酿造酱油卖了多少件？"],
+      "expect": { "contains_any": ["991"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "pic_01",
+      "category": "款式图",
+      "turns": ["氨基酸温和洁面乳的款式图发一下"],
+      "expect": { "contains_any": ["/images/mock/goods_37_1.jpg"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "followup_01",
+      "category": "追问改写",
+      "turns": ["美妆里护肤有什么推荐？", "那90的呢？"],
+      "expect": { "contains_any": ["89.00元"], "contains_all": [], "not_contains": ["2999", "婴幼儿配方奶粉"] }
+    },
+    {
+      "id": "followup_02",
+      "category": "追问改写",
+      "turns": ["休闲帆布鞋多少钱？", "那小白鞋的呢？"],
+      "expect": { "contains_any": ["129.00元"], "contains_all": ["/goodsDetail/41"], "not_contains": [] }
+    },
+    {
+      "id": "followup_03",
+      "category": "追问改写",
+      "turns": ["曜石黑三摄手机多少钱？", "库存还有多少件？"],
+      "expect": { "contains_any": ["498件"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "followup_04",
+      "category": "追问改写",
+      "turns": ["偏光太阳镜多少钱？", "它有详情页链接吗？"],
+      "expect": { "contains_any": [], "contains_all": ["/goodsDetail/46"], "not_contains": [] }
+    },
+    {
+      "id": "ship_01",
+      "category": "物流发货",
+      "turns": ["运费怎么算？"],
+      "expect": { "contains_any": ["99", "8元", "15元"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "ship_02",
+      "category": "物流发货",
+      "turns": ["下单后什么时候发货？"],
+      "expect": { "contains_any": ["24-48", "24小时"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "ship_03",
+      "category": "物流发货",
+      "turns": ["买的水果生鲜多久能发货？"],
+      "expect": { "contains_any": ["24小时", "24 小时"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "sale_01",
+      "category": "售后退换",
+      "turns": ["七日无理由退货怎么退？"],
+      "expect": { "contains_any": ["七日", "签收", "7天", "七天"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "sale_02",
+      "category": "售后退换",
+      "turns": ["鲜活易腐的商品能无理由退货吗？"],
+      "expect": { "contains_any": ["不适用", "不支持", "不能", "鲜活易腐"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "sale_03",
+      "category": "售后退换",
+      "turns": ["无理由退货的运费谁承担？"],
+      "expect": { "contains_any": ["消费者承担", "由消费者承担", "消费者承担运费", "消费者"], "contains_all": ["运费"], "not_contains": [] }
+    },
+    {
+      "id": "faq_01",
+      "category": "平台使用",
+      "turns": ["怎么注册账号？"],
+      "expect": { "contains_any": ["我的", "注册"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "faq_02",
+      "category": "平台使用",
+      "turns": ["忘记密码怎么办？"],
+      "expect": { "contains_any": ["管理员", "重置"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "faq_03",
+      "category": "平台使用",
+      "turns": ["怎么支付订单？"],
+      "expect": { "contains_any": ["去支付", "待付款"], "contains_all": [], "not_contains": [] }
+    },
+    {
+      "id": "faq_04",
+      "category": "平台使用",
+      "turns": ["客服是真人还是机器人？"],
+      "expect": { "contains_any": ["AI", "智能"], "contains_all": [], "not_contains": [] }
+    }
+  ]
+}

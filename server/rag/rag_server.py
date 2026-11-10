@@ -169,7 +169,7 @@ def get_retriever():
             raise RuntimeError('知识索引不存在，请先运行 build_index.py 构建索引')
         storage_context = StorageContext.from_defaults(persist_dir=STORAGE_DIR)
         _index = load_index_from_storage(storage_context)
-        _retriever = _index.as_retriever(similarity_top_k=2)
+        _retriever = _index.as_retriever(similarity_top_k=3)
         print('[rag] 索引加载完成，检索器就绪')
     return _retriever
 
@@ -206,7 +206,10 @@ _REWRITE_PROMPT = (
     '完整、适合用于知识库向量检索的查询语句。要求：\n'
     '1) 补全省略的品类和指代（如"这个""第一个"指上一轮提到的商品类型）；\n'
     '2) 保留用户提到的全部条件（价格、数量、用途等）；\n'
-    '3) 只输出改写后的查询语句本身，不要任何解释或前缀。\n\n'
+    '3) 只输出改写后的查询语句本身，不要任何解释或前缀。\n'
+    '4) 用户追问中提到的整数价格是"价位附近"的意思，不是精确价格：'
+    '改写时要带上品类并把价格写成"XX元左右"（如历史在聊护肤品，用户问"那90的呢"，'
+    '应改写为"90元左右的护肤品推荐"），不要按"售价正好XX元的商品"检索。\n\n'
     '对话历史：\n{hist}\n\n用户最新输入：{msg}\n\n改写后的查询：'
 )
 
@@ -238,7 +241,7 @@ def _rewrite_query(message, history):
 
 def _build_msgs(message, history, nodes, extra_hint=None):
     """组装 prompt（系统 + 历史 + 知识片段），流式与非流式共用"""
-    ctx_text = '\n\n'.join(n.get_content() for n in nodes[:2]) or '（无相关知识）'
+    ctx_text = '\n\n'.join(n.get_content() for n in nodes[:3]) or '（无相关知识）'
     system = f'{SYSTEM_PROMPT}\n\n【知识库参考内容】\n{ctx_text}'
     if extra_hint:
         system += f'\n\n【更正提示】{extra_hint}'
@@ -288,7 +291,7 @@ def _prices_in_text(text):
 
 def _ensure_links(answer, nodes):
     """确定性补链补图：回答中谈到了知识库某商品，但缺少其详情页链接或款式图时自动补上"""
-    for node in nodes[:2]:
+    for node in nodes[:3]:
         for line in (node.get_content() or '').splitlines():
             m = re.search(r'【编号(\d+)】([^，。,、\n]+)', line)
             if not m:

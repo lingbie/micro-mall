@@ -1,10 +1,14 @@
 // app.js — 组装 Express 应用（中间件 + 路由 + 错误处理），导出供 index.js 与测试注入
 const express = require('express')
 const cors = require('cors')
+const helmet = require('helmet')
 const config = require('./config')
 const { notFound, errorHandler } = require('./middleware/error')
 
 const app = express()
+
+// 安全响应头（X-Frame-Options/X-Content-Type-Options/HSTS 等；纯 JSON API 不受 CSP 影响）
+app.use(helmet())
 
 // CORS 白名单：仅允许配置的来源，禁止通配符
 app.use(

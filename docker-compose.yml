@@ -57,6 +57,12 @@ services:
       REDIS_PORT: 6379
       # AI 客服生成的商品详情页链接前缀；公网部署时在 .env 里设为 http://<公网IP或域名>
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      # SQL 结构化预筛：直连 MySQL 按价格/类目筛选候选商品
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-myshop123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-myshop}
     ports:
       # 宿主机端口可用 RAG_HOST_PORT 覆盖；与本机 RAG(8361)冲突时改端口
       - "${RAG_HOST_PORT:-8361}:8361"

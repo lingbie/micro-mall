@@ -195,6 +195,142 @@ def _retrieve_context(message):
         return []
 
 
+# ---------------- SQL 结构化预筛：价格/类目条件先查数据库，候选注入回答 ----------------
+# 向量检索对"2000元以内""90左右"这类结构化条件不敏感，先用 SQL 精确筛出候选商品，
+# 再作为额外参考注入 prompt；向量检索照常保留，两者互补。
+_CAT_CACHE = {'t': 0.0, 'data': None}   # 分类名 -> 二级分类 id 列表，进程内缓存 60s
+
+
+def _db_connect():
+    import pymysql
+    return pymysql.connect(
+        host=_cfg('MYSQL_HOST', '127.0.0.1'), port=int(_cfg('MYSQL_PORT', '3306')),
+        user=_cfg('MYSQL_USER', 'root'), password=_cfg('MYSQL_PASSWORD', ''),
+        database=_cfg('MYSQL_DATABASE', 'myshop'), charset='utf8mb4',
+        connect_timeout=3, read_timeout=5,
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+
+
+def _load_categories():
+    """分类名 -> 二级分类 id 列表（一级类名映射到其全部二级 id），60s 缓存"""
+    if _CAT_CACHE['data'] is not None and time.time() - _CAT_CACHE['t'] < 60:
+        return _CAT_CACHE['data']
+    try:
+        conn = _db_connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'SELECT c.id, c.name, c.parent_id, p.name AS parent_name '
+                    'FROM category c LEFT JOIN category p ON c.parent_id = p.id'
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+    except Exception as e:
+        print('[rag] 分类表读取失败（SQL 预筛本轮停用）:', e)
+        return {}
+    mapping = {}
+    for r in rows:
+        if r['parent_id'] == 0:
+            continue  # 商品挂在二级分类下
+        mapping.setdefault(r['name'], []).append(r['id'])
+        if r['parent_name']:
+            mapping.setdefault(r['parent_name'], []).append(r['id'])
+    _CAT_CACHE.update(t=time.time(), data=mapping)
+    return mapping
+
+
+def _extract_price_range(query):
+    """从查询抽价格区间（min, max），无法可靠抽取时返回 None"""
+    m = re.search(r'(\d+(?:\.\d+)?)\s*[-~至到]\s*(\d+(?:\.\d+)?)\s*元', query)
+    if m:
+        lo, hi = float(m.group(1)), float(m.group(2))
+        return (min(lo, hi), max(lo, hi))
+    m = re.search(r'(\d+(?:\.\d+)?)\s*元?\s*(左右|上下|附近)', query)
+    if m:  # "90左右"理解为价位附近 ±15%
+        x = float(m.group(1))
+        return (round(x * 0.85, 2), round(x * 1.15, 2))
+    m = re.search(
+        r'(?:不超过|低于|最多)\s*(\d+(?:\.\d+)?)\s*元'
+        r'|(\d+(?:\.\d+)?)\s*元\s*(?:以内|以下|之内)'
+        r'|(\d+(?:\.\d+)?)\s*(?:以内|以下)(?![小时天件])',
+        query,
+    )
+    if m:
+        return (0, float(next(g for g in m.groups() if g)))
+    m = re.search(
+        r'(\d+(?:\.\d+)?)\s*元\s*(?:以上|往上|起)'
+        r'|(?:超过|高于)\s*(\d+(?:\.\d+)?)\s*元',
+        query,
+    )
+    if m:
+        return (float(next(g for g in m.groups() if g)), None)
+    return None
+
+
+def _extract_category_ids(query):
+    """查询中出现的分类名（一级或二级）映射为二级分类 id 列表"""
+    cats = _load_categories()
+    if not cats:
+        return []
+    ids = []
+    for name, cid_list in cats.items():
+        if name in query:
+            ids.extend(cid_list)
+    return sorted(set(ids))
+
+
+def _sql_prefilter(query):
+    """按价格/类目条件查库筛候选商品，返回注入文本；无条件或失败返回 None
+
+    注入策略：有价格条件时始终注入（精确筛选价值大）；
+    仅有类目条件时只在推荐类查询注入，避免具体商品的"库存/价格"事实型问题被同类候选干扰。
+    """
+    price = _extract_price_range(query)
+    cat_ids = _extract_category_ids(query)
+    is_recommend = bool(re.search(r'推荐|有什么|有哪些|买什么|选个|哪款|哪种好|什么好', query))
+    if price is None and not (cat_ids and is_recommend):
+        return None
+    where, args = ['status = 1'], []
+    if price is not None:
+        if price[0] is not None:
+            where.append('price >= %s')
+            args.append(price[0])
+        if price[1] is not None:
+            where.append('price <= %s')
+            args.append(price[1])
+    if cat_ids:
+        where.append(f'category_id IN ({",".join(["%s"] * len(cat_ids))})')
+        args.extend(cat_ids)
+    sql = (
+        f'SELECT id, name, price, stock, sales, pic_url FROM goods '
+        f'WHERE {" AND ".join(where)} ORDER BY sales DESC LIMIT 8'
+    )
+    try:
+        conn = _db_connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, args)
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+    except Exception as e:
+        print('[rag] SQL 预筛失败:', e)
+        return None
+    if not rows:
+        return None
+    lines = [f'【数据库实时候选】以下是根据用户条件从数据库筛选出的在售商品（按销量排序，至多 8 条）：']
+    for g in rows:
+        lines.append(
+            f'- 【编号{g["id"]}】{g["name"]}，售价{float(g["price"]):.2f}元，'
+            f'库存{g["stock"]}件，已售{g["sales"]}件，'
+            f'详情页 {FRONTEND_URL}/goodsDetail/{g["id"]}，款式图 {g["pic_url"] or ""}。'
+        )
+    lines.append('推荐时优先从【数据库实时候选】中选择，价格等数字必须逐字引用候选列表中的数据。')
+    return '\n'.join(lines)
+
+
 # ---------------- 追问改写：结合历史把"那90的呢"补全为独立查询 ----------------
 # 短消息或含省略指代的追问，单靠原文检索会跑偏（如"那90的呢"检索出无关品类）
 _FOLLOWUP_PAT = re.compile(
@@ -239,9 +375,11 @@ def _rewrite_query(message, history):
         return message
 
 
-def _build_msgs(message, history, nodes, extra_hint=None):
-    """组装 prompt（系统 + 历史 + 知识片段），流式与非流式共用"""
+def _build_msgs(message, history, nodes, extra_hint=None, prefilter=None):
+    """组装 prompt（系统 + 历史 + 知识片段 + SQL 候选），流式与非流式共用"""
     ctx_text = '\n\n'.join(n.get_content() for n in nodes[:3]) or '（无相关知识）'
+    if prefilter:
+        ctx_text += f'\n\n{prefilter}'
     system = f'{SYSTEM_PROMPT}\n\n【知识库参考内容】\n{ctx_text}'
     if extra_hint:
         system += f'\n\n【更正提示】{extra_hint}'
@@ -253,9 +391,9 @@ def _build_msgs(message, history, nodes, extra_hint=None):
     return msgs
 
 
-def _compose_and_answer(message, history, nodes, extra_hint=None):
+def _compose_and_answer(message, history, nodes, extra_hint=None, prefilter=None):
     """组装 prompt（系统 + 历史 + 知识片段）并调用 LLM"""
-    resp = Settings.llm.chat(_build_msgs(message, history, nodes, extra_hint))
+    resp = Settings.llm.chat(_build_msgs(message, history, nodes, extra_hint, prefilter))
     return resp.message.content
 
 
@@ -317,9 +455,9 @@ def _ensure_links(answer, nodes):
     return answer
 
 
-def _answer_with_check(message, history, nodes):
+def _answer_with_check(message, history, nodes, prefilter=None):
     """调用 LLM 后做价格一致性自检：回答中出现知识库没有的价格则带更正提示重试一次"""
-    answer = _compose_and_answer(message, history, nodes)
+    answer = _compose_and_answer(message, history, nodes, prefilter=prefilter)
     kb_prices = _load_kb_prices()
     if not kb_prices:
         return _ensure_links(answer, nodes)  # 知识库价格集不可用时跳过自检
@@ -329,11 +467,11 @@ def _answer_with_check(message, history, nodes):
                 + '、'.join(f'{p:.2f}' for p in sorted(set(fakes)))
                 + ' 元）。请重新回答：所有价格必须逐字引用【知识库参考内容】中的原价，'
                 '知识库没有的价格信息就回答"知识库暂无该商品的价格信息"，严禁编造价格。')
-        answer = _compose_and_answer(message, history, nodes, extra_hint=hint)
+        answer = _compose_and_answer(message, history, nodes, extra_hint=hint, prefilter=prefilter)
     return _ensure_links(answer, nodes)
 
 
-def _finalize_answer(message, history, nodes, streamed):
+def _finalize_answer(message, history, nodes, streamed, prefilter=None):
     """对流式已生成的文本做收尾：价格自检（必要时重答一次）+ 确定性补链补图"""
     answer = streamed
     kb_prices = _load_kb_prices()
@@ -344,7 +482,7 @@ def _finalize_answer(message, history, nodes, streamed):
                     + '、'.join(f'{p:.2f}' for p in sorted(set(fakes)))
                     + ' 元）。请重新回答：所有价格必须逐字引用【知识库参考内容】中的原价，'
                     '知识库没有的价格信息就回答"知识库暂无该商品的价格信息"，严禁编造价格。')
-            answer = _compose_and_answer(message, history, nodes, extra_hint=hint)
+            answer = _compose_and_answer(message, history, nodes, extra_hint=hint, prefilter=prefilter)
     return _ensure_links(answer, nodes)
 
 
@@ -394,8 +532,9 @@ def query(body: QueryIn):
                if m.get('role') in ('user', 'assistant') and m.get('content')]
     search_query = _rewrite_query(body.message, history) if _needs_rewrite(body.message, history) else body.message
     nodes = _retrieve_context(search_query)
+    prefilter = _sql_prefilter(search_query)
     sources = _sources_from_nodes(nodes)
-    reply = _answer_with_check(body.message, history, nodes)
+    reply = _answer_with_check(body.message, history, nodes, prefilter=prefilter)
     return QueryOut(reply=reply, sources=sources)
 
 
@@ -406,8 +545,9 @@ def session_query(body: SessionQueryIn):
     # 追问改写：把"那90的呢"结合历史补全为"90元左右的护肤产品"，避免检索跑偏
     search_query = _rewrite_query(body.message, history) if _needs_rewrite(body.message, history) else body.message
     nodes = _retrieve_context(search_query)
+    prefilter = _sql_prefilter(search_query)
     sources = _sources_from_nodes(nodes)
-    reply = _answer_with_check(body.message, history, nodes)
+    reply = _answer_with_check(body.message, history, nodes, prefilter=prefilter)
     append_history(body.session_id, 'user', body.message)
     append_history(body.session_id, 'assistant', reply)
     new_history = load_history(body.session_id)
@@ -425,11 +565,12 @@ def session_stream(body: SessionQueryIn):
     history = load_history(body.session_id)
     search_query = _rewrite_query(body.message, history) if _needs_rewrite(body.message, history) else body.message
     nodes = _retrieve_context(search_query)
+    prefilter = _sql_prefilter(search_query)
 
     def gen():
         chunks = []
         try:
-            msgs = _build_msgs(body.message, history, nodes)
+            msgs = _build_msgs(body.message, history, nodes, prefilter=prefilter)
             for resp in Settings.llm.stream_chat(msgs):
                 delta = resp.delta or ''
                 if delta:
@@ -445,7 +586,7 @@ def session_stream(body: SessionQueryIn):
             yield _sse({'type': 'error', 'message': '知识服务暂时不可用，请稍后再试'})
             return
         # 收尾：价格自检（伪造价格则非流式重答一次）+ 补链补图，done 的 reply 为最终全文
-        final = _finalize_answer(body.message, history, nodes, streamed)
+        final = _finalize_answer(body.message, history, nodes, streamed, prefilter=prefilter)
         append_history(body.session_id, 'user', body.message)
         append_history(body.session_id, 'assistant', final)
         yield _sse({'type': 'done', 'reply': final})

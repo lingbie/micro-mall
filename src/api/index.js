@@ -78,6 +78,57 @@ export function confirmOrder(id) {
 export function chat(data) {
   return useMock ? mockChat(data) : request.post('/home/chat', data)
 }
+// AI 客服流式对话（SSE）：onDelta 逐段回调
+// 返回 { reply } 成功 / { error } 服务端错误 / null 接口不可用（调用方回退非流式）
+export async function chatStream(data, { onDelta } = {}) {
+  if (useMock) {
+    const res = await mockChat(data)
+    if (res && res.reply && typeof onDelta === 'function') onDelta(res.reply)
+    return res ? { reply: res.reply } : { error: 'mock 服务不可用' }
+  }
+  try {
+    const resp = await fetch(`${config.baseURL}/home/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!resp.ok || !resp.body) return null
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    let result = null
+    const handle = evt => {
+      if (evt.type === 'delta' && evt.content) {
+        if (typeof onDelta === 'function') onDelta(String(evt.content))
+      } else if (evt.type === 'done') {
+        result = { reply: String(evt.reply || '') }
+      } else if (evt.type === 'error') {
+        result = { error: String(evt.message || '回复失败') }
+      }
+    }
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let idx
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const block = buf.slice(0, idx)
+        buf = buf.slice(idx + 2)
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          try {
+            handle(JSON.parse(line.slice(5).trim()))
+          } catch (_) {
+            /* 忽略无法解析的行 */
+          }
+        }
+      }
+    }
+    return result
+  } catch (e) {
+    return null
+  }
+}
 export function getChatHistory(sessionId) {
   return request.get('/home/chat/history', { params: { session_id: sessionId } })
 }

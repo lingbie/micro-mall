@@ -1,6 +1,6 @@
 // composables/useChat.js — 客服会话逻辑复用（Chat 页面与悬浮球客服面板共享）
 import { ref, nextTick } from 'vue'
-import { chat, getChatHistory } from '../api'
+import { chat, chatStream, getChatHistory } from '../api'
 
 export const WELCOME =
   '您好，我是微商城智能客服小徽 🛒 可以为您推荐商品、解答订单与售后问题，请问有什么可以帮您？'
@@ -37,6 +37,9 @@ export function useChat(scrollRef, options = {}) {
   const loading = ref(false)
   const messages = ref([{ role: 'assistant', content: WELCOME }])
   const quickAsks = QUICK_ASKS
+  // SSE 流式渲染状态：streaming 为 true 时界面直接渲染 streamText 逐字气泡
+  const streaming = ref(false)
+  const streamText = ref('')
   let historyLoaded = false
 
   function scrollToBottom() {
@@ -69,20 +72,56 @@ export function useChat(scrollRef, options = {}) {
     messages.value.push({ role: 'user', content })
     loading.value = true
     scrollToBottom()
+    let reply = ''
+    let gotDelta = false
     try {
-      const res = await chat({ message: content, session_id: sessionId })
-      const reply = res ? res.reply : '抱歉，我暂时无法回答，请稍后再试。'
-      messages.value.push({ role: 'assistant', content: reply })
-      if (typeof options.onReply === 'function') {
-        options.onReply({ role: 'assistant', content: reply })
+      // 优先 SSE 流式：逐字渲染
+      const res = await chatStream({ message: content, session_id: sessionId }, {
+        onDelta(d) {
+          gotDelta = true
+          streaming.value = true
+          streamText.value += d
+          scrollToBottom()
+        }
+      })
+      if (res && res.reply) {
+        reply = res.reply
+      } else if (gotDelta) {
+        // 已流出部分内容但未收到完整全文：退化为展示已收到的文本，不再重复请求
+        reply = streamText.value
+      } else {
+        // 流式不可用或出错：非流式兜底
+        const r = await chat({ message: content, session_id: sessionId })
+        reply = r ? r.reply : ''
       }
     } catch (e) {
-      messages.value.push({ role: 'assistant', content: '网络开小差了，请稍后再试。' })
+      reply = ''
     } finally {
+      if (!reply && gotDelta) reply = streamText.value
+      streaming.value = false
+      streamText.value = ''
       loading.value = false
+      messages.value.push({
+        role: 'assistant',
+        content: reply || '抱歉，我暂时无法回答，请稍后再试。'
+      })
+      if (reply && typeof options.onReply === 'function') {
+        options.onReply({ role: 'assistant', content: reply })
+      }
       scrollToBottom()
     }
   }
 
-  return { sessionId, input, loading, messages, quickAsks, scrollToBottom, loadHistory, send }
+  return {
+    sessionId,
+    input,
+    loading,
+    messages,
+    quickAsks,
+    streaming,
+    streamText,
+    scrollToBottom,
+    loadHistory,
+    send
+  }
 }

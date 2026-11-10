@@ -26,7 +26,8 @@
 
         <div ref="bodyRef" class="cs-body">
           <MessageBubble v-for="(msg, i) in messages" :key="i" :role="msg.role" :content="msg.content" />
-          <MessageBubble v-if="loading" role="assistant" typing />
+          <MessageBubble v-if="loading && !streaming" role="assistant" typing />
+          <MessageBubble v-if="streaming" role="assistant" :content="streamText" streaming />
         </div>
 
         <div v-if="messages.length <= 1 && !loading" class="cs-quick">
@@ -57,7 +58,7 @@ const unread = ref(0)
 const bodyRef = ref(null)
 
 // 会话逻辑复用 useChat；悬浮球特有：面板未打开时收到回复累加未读角标
-const { input, loading, messages, quickAsks, scrollToBottom, loadHistory, send } = useChat(bodyRef, {
+const { input, loading, messages, quickAsks, streaming, streamText, scrollToBottom, loadHistory, send } = useChat(bodyRef, {
   onReply: () => {
     if (!show.value) unread.value += 1
   }

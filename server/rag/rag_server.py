@@ -236,8 +236,8 @@ def _rewrite_query(message, history):
         return message
 
 
-def _compose_and_answer(message, history, nodes, extra_hint=None):
-    """组装 prompt（系统 + 历史 + 知识片段）并调用 LLM"""
+def _build_msgs(message, history, nodes, extra_hint=None):
+    """组装 prompt（系统 + 历史 + 知识片段），流式与非流式共用"""
     ctx_text = '\n\n'.join(n.get_content() for n in nodes[:2]) or '（无相关知识）'
     system = f'{SYSTEM_PROMPT}\n\n【知识库参考内容】\n{ctx_text}'
     if extra_hint:
@@ -247,7 +247,12 @@ def _compose_and_answer(message, history, nodes, extra_hint=None):
         role = MessageRole.USER if h['role'] == 'user' else MessageRole.ASSISTANT
         msgs.append(ChatMessage(role=role, content=h['content']))
     msgs.append(ChatMessage(role=MessageRole.USER, content=message))
-    resp = Settings.llm.chat(msgs)
+    return msgs
+
+
+def _compose_and_answer(message, history, nodes, extra_hint=None):
+    """组装 prompt（系统 + 历史 + 知识片段）并调用 LLM"""
+    resp = Settings.llm.chat(_build_msgs(message, history, nodes, extra_hint))
     return resp.message.content
 
 
@@ -325,6 +330,21 @@ def _answer_with_check(message, history, nodes):
     return _ensure_links(answer, nodes)
 
 
+def _finalize_answer(message, history, nodes, streamed):
+    """对流式已生成的文本做收尾：价格自检（必要时重答一次）+ 确定性补链补图"""
+    answer = streamed
+    kb_prices = _load_kb_prices()
+    if kb_prices:
+        fakes = [p for p in _prices_in_text(answer) if p not in kb_prices]
+        if fakes:
+            hint = ('你刚才的回答中出现了知识库中不存在的价格数字（'
+                    + '、'.join(f'{p:.2f}' for p in sorted(set(fakes)))
+                    + ' 元）。请重新回答：所有价格必须逐字引用【知识库参考内容】中的原价，'
+                    '知识库没有的价格信息就回答"知识库暂无该商品的价格信息"，严禁编造价格。')
+            answer = _compose_and_answer(message, history, nodes, extra_hint=hint)
+    return _ensure_links(answer, nodes)
+
+
 class QueryIn(BaseModel):
     message: str = Field(..., min_length=1, max_length=500)
     history: list = []
@@ -389,6 +409,49 @@ def session_query(body: SessionQueryIn):
     append_history(body.session_id, 'assistant', reply)
     new_history = load_history(body.session_id)
     return SessionQueryOut(reply=reply, sources=sources, history=new_history)
+
+
+def _sse(obj):
+    return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+
+@app.post('/rag/session/stream')
+def session_stream(body: SessionQueryIn):
+    """多轮会话流式版：SSE 逐段下发，done 事件携带价格自检/补链后的最终全文"""
+    from fastapi.responses import StreamingResponse
+    history = load_history(body.session_id)
+    search_query = _rewrite_query(body.message, history) if _needs_rewrite(body.message, history) else body.message
+    nodes = _retrieve_context(search_query)
+
+    def gen():
+        chunks = []
+        try:
+            msgs = _build_msgs(body.message, history, nodes)
+            for resp in Settings.llm.stream_chat(msgs):
+                delta = resp.delta or ''
+                if delta:
+                    chunks.append(delta)
+                    yield _sse({'type': 'delta', 'content': delta})
+        except Exception as e:
+            print('[rag stream] LLM 流式失败:', e)
+            if not chunks:
+                yield _sse({'type': 'error', 'message': '知识服务暂时不可用，请稍后再试'})
+                return
+        streamed = ''.join(chunks)
+        if not streamed.strip():
+            yield _sse({'type': 'error', 'message': '知识服务暂时不可用，请稍后再试'})
+            return
+        # 收尾：价格自检（伪造价格则非流式重答一次）+ 补链补图，done 的 reply 为最终全文
+        final = _finalize_answer(body.message, history, nodes, streamed)
+        append_history(body.session_id, 'user', body.message)
+        append_history(body.session_id, 'assistant', final)
+        yield _sse({'type': 'done', 'reply': final})
+
+    return StreamingResponse(
+        gen(),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @app.get('/rag/session/history', response_model=SessionHistoryOut)

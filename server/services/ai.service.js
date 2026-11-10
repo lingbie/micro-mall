@@ -23,6 +23,62 @@ async function callRagSession(sessionId, message) {
   return null
 }
 
+// RAG 流式会话（SSE 透传）：onDelta 收到每段文本；返回最终全文（done 事件），失败返回 null
+async function callRagSessionStream(sessionId, message, onDelta) {
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 120000)
+    const resp = await fetch(`${config.ragUrl}/rag/session/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, message }),
+      signal: controller.signal
+    })
+    if (!resp.ok || !resp.body) {
+      clearTimeout(timer)
+      return null
+    }
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    let final = null
+    let errored = false
+    const handleEvent = evt => {
+      if (evt.type === 'delta' && evt.content) {
+        if (typeof onDelta === 'function') onDelta(String(evt.content))
+      } else if (evt.type === 'done' && evt.reply) {
+        final = String(evt.reply)
+      } else if (evt.type === 'error') {
+        errored = true
+      }
+    }
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let idx
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const block = buf.slice(0, idx)
+        buf = buf.slice(idx + 2)
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          try {
+            handleEvent(JSON.parse(line.slice(5).trim()))
+          } catch (_) {
+            /* 忽略无法解析的行 */
+          }
+        }
+      }
+    }
+    clearTimeout(timer)
+    if (errored) return null
+    return final && final.trim() ? final : null
+  } catch (e) {
+    console.error('[rag stream fallback]', e.message || e)
+    return null
+  }
+}
+
 // 读取 RAG 会话历史（Redis）
 async function getRagHistory(sessionId) {
   try {
@@ -82,25 +138,10 @@ async function callSiliconFlow(messages) {
   return data.choices?.[0]?.message?.content || ''
 }
 
-// 清洗对话历史：只允许 user/assistant 角色、字符串内容、长度受限，防止 prompt 注入
-function cleanHistory(h) {
-  if (!Array.isArray(h)) return []
-  return h
-    .slice(-6)
-    .filter(
-      m =>
-        m &&
-        (m.role === 'user' || m.role === 'assistant') &&
-        typeof m.content === 'string' &&
-        m.content.trim()
-    )
-    .map(m => ({ role: m.role, content: String(m.content).slice(0, 2000) }))
-}
-
 module.exports = {
   callRagSession,
+  callRagSessionStream,
   getRagHistory,
   buildShopKnowledge,
-  callSiliconFlow,
-  cleanHistory
+  callSiliconFlow
 }

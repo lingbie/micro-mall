@@ -3,7 +3,8 @@
     <!-- 消息列表 -->
     <div ref="scrollRef" class="chat-body">
       <MessageBubble v-for="(msg, i) in messages" :key="i" :role="msg.role" :content="msg.content" />
-      <MessageBubble v-if="loading" role="assistant" typing />
+      <MessageBubble v-if="loading && !streaming" role="assistant" typing />
+      <MessageBubble v-if="streaming" role="assistant" :content="streamText" streaming />
     </div>
 
     <!-- 快捷问题 -->
@@ -30,7 +31,7 @@ import { useChat } from '../composables/useChat'
 import MessageBubble from '../components/MessageBubble.vue'
 
 const scrollRef = ref(null)
-const { input, loading, messages, quickAsks, loadHistory, send } = useChat(scrollRef)
+const { input, loading, messages, quickAsks, streaming, streamText, loadHistory, send } = useChat(scrollRef)
 
 onMounted(() => {
   loadHistory()

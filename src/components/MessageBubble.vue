@@ -1,7 +1,7 @@
 <template>
   <div :class="['msg-row', role]">
     <div v-if="role === 'assistant'" class="avatar">小徽</div>
-    <div v-if="typing" class="bubble typing">
+    <div v-if="typing || (streaming && !content)" class="bubble typing">
       <span></span><span></span><span></span>
     </div>
     <div v-else class="bubble">
@@ -21,7 +21,8 @@ import { computed } from 'vue'
 const props = defineProps({
   role: { type: String, default: 'assistant' }, // 'user' | 'assistant'
   content: { type: String, default: '' },
-  typing: { type: Boolean, default: false } // 加载中显示三点动画
+  typing: { type: Boolean, default: false }, // 加载中显示三点动画
+  streaming: { type: Boolean, default: false } // SSE 流式渲染中：内容为空时显示三点，非空逐字展示
 })
 
 // 解析回复内容为片段：Markdown 图片/链接、裸 URL、站内图片路径（/images/...jpg）
